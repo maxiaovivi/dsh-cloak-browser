@@ -12,6 +12,8 @@
   },
   "files": [
     "lib",
+    "bench",
+    "docs",
     "cordis.patch.yml",
     "README.md",
     "README.zh-CN.md",
@@ -35,7 +37,11 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --check lib/plugin.mjs && node --check lib/policy.mjs && node --check lib/snapshot.mjs"
+    "test:integration": "node --test test/*.integration.mjs",
+    "benchmark": "node bench/benchmark.mjs",
+    "benchmark:json": "node bench/benchmark.mjs --json",
+    "benchmark:no-humanize": "node bench/benchmark.mjs --no-humanize",
+    "check": "node --check lib/plugin.mjs && node --check lib/policy.mjs && node --check lib/snapshot.mjs && node --check bench/benchmark.mjs"
   },
   "dsh": {
     "bundle": {

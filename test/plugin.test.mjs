@@ -2,16 +2,38 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCloakBrowserPlugin } from "../lib/plugin.mjs";
 
-const ITEMS = [{
-  index: 0,
-  tag: "button",
-  role: "button",
-  name: "Continue",
-  type: "",
-  href: "",
-  disabled: false,
-  checked: null
-}];
+const ITEMS = [
+  {
+    index: 0,
+    tag: "button",
+    role: "button",
+    name: "Continue",
+    type: "",
+    href: "",
+    disabled: false,
+    checked: null
+  },
+  {
+    index: 1,
+    tag: "input",
+    role: "textbox",
+    name: "Search",
+    type: "text",
+    href: "",
+    disabled: false,
+    checked: null
+  },
+  {
+    index: 2,
+    tag: "select",
+    role: "combobox",
+    name: "Region",
+    type: "",
+    href: "",
+    disabled: false,
+    checked: null
+  }
+];
 
 class FakeLocator {
   constructor(page, kind, index = 0) {
@@ -81,12 +103,14 @@ class FakeContext {
   async close() { this.closed = true; for (const page of this.items) page.closed = true; }
 }
 
-function harness() {
+function harness(options = {}) {
   const tools = new Map();
   const listeners = new Map();
+  let savedImages = 0;
   const attachments = {
     imageLimits: { mediaTypes: ["image/jpeg", "image/png"] },
     async saveImage({ data, mediaType, name }) {
+      savedImages += 1;
       return { attachmentId: "image-1", mediaType, bytes: data.byteLength, width: 100, height: 80, name };
     }
   };
@@ -96,14 +120,15 @@ function harness() {
       attachments,
       get(name) {
         if (name === "attachments") return attachments;
-        if (name === "llm") return { resolveModelInfo: async () => ({ inputModalities: ["text", "image"] }) };
+        if (name === "llm") return { resolveModelInfo: async () => ({ inputModalities: options.modalities ?? ["text", "image"] }) };
         return undefined;
       },
       on(name, callback) { listeners.set(name, callback); return () => listeners.delete(name); },
       effect(execute) { const dispose = execute(); return async () => dispose?.(); }
     },
     tools,
-    listeners
+    listeners,
+    savedImages: () => savedImages
   };
 }
 
@@ -131,6 +156,7 @@ test("plugin exposes a compact native browser tool set and uses snapshot refs", 
     "browser_click", "browser_close", "browser_extract", "browser_navigate", "browser_open", "browser_press",
     "browser_screenshot", "browser_select", "browser_snapshot", "browser_tabs", "browser_type", "browser_wait"
   ]);
+  assert.equal(tools.get("browser_type").timeoutMs, 90000);
 
   const subject = agent("agent-a");
   const exec = execFor(subject);
@@ -170,4 +196,76 @@ test("browser sessions are isolated by Agent and disposed with the Agent", async
   await listeners.get("agent/disposed")({ agent: first });
   assert.equal(created[0].closed, true);
   assert.equal(created[1].closed, false);
+});
+
+test("interaction, extraction and tab tools preserve the snapshot contract", async () => {
+  const created = [];
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({
+    launchContext: async () => { const context = new FakeContext(); created.push(context); return context; }
+  }) });
+  plugin.apply(ctx, { routePrompt: false });
+  const exec = execFor(agent("interactions"));
+  await tools.get("browser_open").execute({}, exec);
+
+  let snapshot = await tools.get("browser_snapshot").execute({}, exec);
+  const textbox = snapshot.elements.find((element) => element.role === "textbox");
+  await tools.get("browser_type").execute({ ref: textbox.ref, text: "query", submit: true }, exec);
+  assert.equal(created[0].page.filled, "query");
+  assert.equal(created[0].page.lastKey, "Enter");
+
+  snapshot = await tools.get("browser_snapshot").execute({}, exec);
+  const select = snapshot.elements.find((element) => element.role === "combobox");
+  await tools.get("browser_select").execute({ ref: select.ref, value: "id" }, exec);
+  assert.equal(created[0].page.selected, "id");
+
+  await tools.get("browser_press").execute({ key: "Escape" }, exec);
+  assert.equal(created[0].page.lastKey, "Escape");
+  const extracted = await tools.get("browser_extract").execute({ kind: "text", max_chars: 7 }, exec);
+  assert.equal(extracted.content, "Example");
+  assert.equal(extracted.truncated, true);
+
+  const secondPage = await created[0].newPage();
+  secondPage.currentUrl = "https://second.example";
+  let tabs = await tools.get("browser_tabs").execute({ action: "list" }, exec);
+  assert.equal(tabs.tabs.length, 2);
+  const firstPageId = tabs.tabs.find((tab) => tab.url === "about:blank").pageId;
+  tabs = await tools.get("browser_tabs").execute({ action: "select", page_id: firstPageId }, exec);
+  assert.equal(tabs.tabs.find((tab) => tab.pageId === firstPageId).active, true);
+  await tools.get("browser_tabs").execute({ action: "close", page_id: firstPageId }, exec);
+  assert.equal(created[0].page.closed, true);
+  await tools.get("browser_close").execute({}, exec);
+});
+
+test("text-only routes return screenshot metadata without storing an attachment", async () => {
+  const created = [];
+  const harnessState = harness({ modalities: ["text"] });
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({
+    launchContext: async () => { const context = new FakeContext(); created.push(context); return context; }
+  }) });
+  plugin.apply(harnessState.ctx, { routePrompt: false });
+  const exec = execFor(agent("text-model"));
+  const result = await harnessState.tools.get("browser_screenshot").execute({}, exec);
+  assert.equal(result.attached, false);
+  assert.match(result.reason, /does not declare image input/);
+  assert.equal(harnessState.savedImages(), 0);
+  await harnessState.tools.get("browser_close").execute({}, exec);
+});
+
+test("an abort during lazy launch closes the newly created BrowserContext", async () => {
+  let context;
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({
+    launchContext: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      context = new FakeContext();
+      return context;
+    }
+  }) });
+  plugin.apply(ctx, { routePrompt: false });
+  const controller = new AbortController();
+  const pending = tools.get("browser_open").execute({}, { agent: agent("aborted"), signal: controller.signal, deferContext() {} });
+  setTimeout(() => controller.abort(), 5);
+  await assert.rejects(pending, (error) => error.name === "AbortError");
+  assert.equal(context.closed, true);
 });

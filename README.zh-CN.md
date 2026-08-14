@@ -157,6 +157,7 @@ Bundle 默认配置位于 [`cordis.patch.yml`](./cordis.patch.yml)。
 | `blockPrivateNetworks` | `true` | 阻止显式 localhost、私网、link-local 和保留 IP URL |
 | `maxPages` | `5` | 单个 Agent 会话的最大标签页数 |
 | `actionTimeoutMs` | `15000` | 普通 Playwright 操作超时 |
+| `typingTimeoutMs` | `90000` | 为刻意放慢的人类化输入提供更长超时 |
 | `navigationTimeoutMs` | `30000` | 导航超时 |
 | `maxSnapshotElements` | `100` | 单次快照返回的最大 ref 数 |
 | `maxTextChars` | `12000` | 页面和提取文本最大长度 |
@@ -226,3 +227,10 @@ npm pack --dry-run
 ```
 
 单元测试使用假的 BrowserContext，不会下载 Chromium。
+
+## 性能
+
+在文档所列 Linux 测试机上，缓存后的首次延迟启动约 635ms，后续约 183ms；100-ref 快照 P50
+为 29ms，提取 12,000 字符为 1.2ms，视口截图为 51ms。关闭 `humanize` 时“快照→点击→快照”
+为 161ms；默认的人类化工作流会有意放慢到 6.27 秒。双语方法、内存数据、对比表和原始 JSON
+见 [`docs/PERFORMANCE.zh-CN.md`](./docs/PERFORMANCE.zh-CN.md)。

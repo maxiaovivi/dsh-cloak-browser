@@ -179,6 +179,7 @@ The default Bundle configuration is in [`cordis.patch.yml`](./cordis.patch.yml).
 | `blockPrivateNetworks` | `true` | Block explicit localhost, private, link-local, and reserved IP URLs |
 | `maxPages` | `5` | Maximum tabs per Agent session |
 | `actionTimeoutMs` | `15000` | Ordinary Playwright action timeout |
+| `typingTimeoutMs` | `90000` | Longer timeout for deliberately slow humanized typing |
 | `navigationTimeoutMs` | `30000` | Navigation timeout |
 | `maxSnapshotElements` | `100` | Maximum refs returned by a snapshot |
 | `maxTextChars` | `12000` | Maximum returned page/extraction text |
@@ -256,3 +257,13 @@ npm pack --dry-run
 ```
 
 The tests use a fake BrowserContext and do not download Chromium.
+
+## Performance
+
+On the documented Linux test host, cached browser startup was about 635 ms on
+the first lazy call and 183 ms afterward. A 100-ref snapshot took 29 ms P50,
+12,000-character extraction 1.2 ms, and a viewport screenshot 51 ms. With
+`humanize=false`, snapshot-click-snapshot took 161 ms; the default humanized
+workflow intentionally took 6.27 seconds. See the bilingual methodology,
+memory measurements, comparison table, and raw JSON in
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md).
