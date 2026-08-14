@@ -152,6 +152,12 @@ Bundle 默认配置位于 [`cordis.patch.yml`](./cordis.patch.yml)。
 | `geoip` | `false` | 在支持时根据代理 IP 推导语言和时区 |
 | `proxyEnv` | `CLOAKBROWSER_PROXY_URL` | 保存代理 URL 的环境变量名 |
 | `persistentProfileRoot` | 空 | 按 Agent 哈希创建持久 profile 的根目录 |
+| `fingerprintSeed` | 空 | 可选稳定身份 seed；无关用户不能复用同一身份 |
+| `fingerprintNoise` | `false` | 关闭 canvas/WebGL/audio/client-rect 注入噪声；实测消除了 5 个 CreepJS lies |
+| `fingerprintWindowsFontMetrics` | `false` | Chromium 148+ Windows 字体指标；Linux 必须有真实 Windows 字体集 |
+| `allowThirdPartyCookies` | `false` | Chromium 148+ 的内嵌 reCAPTCHA/SSO/支付流程兼容开关 |
+| `fingerprintStorageQuotaMb` | `0` | 可选 storage quota；`0` 保留上游自动值 |
+| `viewportWidth`、`viewportHeight` | `0`、`0` | 可选匹配 viewport/指纹屏幕尺寸；`0` 使用更安全的自动管理 |
 | `allowedDomains` | `[]` | 空数组允许公网；支持精确域名和 `*.example.com` |
 | `blockedDomains` | `[]` | 在 allowlist 前检查的拒绝域名 |
 | `blockPrivateNetworks` | `true` | 阻止显式 localhost、私网、link-local 和保留 IP URL |
@@ -215,6 +221,7 @@ CloakBrowser wrapper 源码使用 MIT，但其下载的 Chromium 二进制由 Cl
 - 域名策略、私网拒绝、snapshot ref、过期 ref、Agent 隔离、图片附件和清理单元测试。
 - 在干净的临时 DSH Web profile 中安装并完整启动 Cordis/Web。
 - Linux x64 免费版 CloakBrowser Chromium 真实启动、访问 `https://example.com` 并提取 DOM 快照。
+- 通过插件路径和 CloakBrowser direct 对照运行上游同口径的本地及公开隐身 detector；完整报告见下文。
 - `npm audit`、语法检查和 npm package dry-run。
 
 本地验证命令：
@@ -227,6 +234,18 @@ npm pack --dry-run
 ```
 
 单元测试使用假的 BrowserContext，不会下载 Chromium。
+
+## 隐身测试结果
+
+在本文档所列 Linux 主机上，使用免费 Chromium 146、headless、无代理且无 Windows 字体时，插件
+通过 5/6 个核心公开 detector。直接调用 CloakBrowser `launchContext` 的对照结果完全相同；两者都只在
+Device & Browser Info 的 `hasInconsistentTimingResolution` 失败。关闭 fingerprint noise 后，CreepJS
+从 5 lies 改进为 0，因此它已成为插件默认值。FingerprintJS demo 仍会拦截这个旧二进制/环境；
+reCAPTCHA v3 一次得到 0.9，重复运行则没有得到 score。
+
+双语测试方法、命令、严格判定规则、完整结果和升级路径见
+[`docs/STEALTH.zh-CN.md`](./docs/STEALTH.zh-CN.md)。公开 detector 会随环境和时间变化，不能保证
+无关站点一定放行。
 
 ## 性能
 

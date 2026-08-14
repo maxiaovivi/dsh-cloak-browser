@@ -11,6 +11,13 @@
         geoip: false
         proxyEnv: CLOAKBROWSER_PROXY_URL
         persistentProfileRoot: ''
+        fingerprintSeed: ''
+        fingerprintNoise: false
+        fingerprintWindowsFontMetrics: false
+        allowThirdPartyCookies: false
+        fingerprintStorageQuotaMb: 0
+        viewportWidth: 0
+        viewportHeight: 0
         allowedDomains: []
         blockedDomains: []
         blockPrivateNetworks: true

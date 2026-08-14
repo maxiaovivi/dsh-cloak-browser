@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCloakBrowserPlugin } from "../lib/plugin.mjs";
+import { buildCloakLaunchOptions, createCloakBrowserPlugin, normalizeConfig } from "../lib/plugin.mjs";
 
 const ITEMS = [
   {
@@ -143,6 +143,47 @@ function agent(id) {
 function execFor(subject, extra = {}) {
   return { agent: subject, signal: new AbortController().signal, deferContext() {}, ...extra };
 }
+
+test("stealth configuration maps to constrained CloakBrowser launch options", () => {
+  const config = normalizeConfig({
+    headless: false,
+    geoip: true,
+    proxyEnv: "TEST_PROXY",
+    fingerprintSeed: "returning-visitor-42",
+    fingerprintNoise: false,
+    fingerprintWindowsFontMetrics: true,
+    allowThirdPartyCookies: true,
+    fingerprintStorageQuotaMb: 5000,
+    viewportWidth: 1920,
+    viewportHeight: 1080
+  });
+  assert.deepEqual(buildCloakLaunchOptions(config, { TEST_PROXY: "socks5://proxy.example:1080" }), {
+    headless: false,
+    humanize: true,
+    humanPreset: "default",
+    geoip: true,
+    releaseChannel: "stable",
+    proxy: "socks5://proxy.example:1080",
+    args: [
+      "--fingerprint=returning-visitor-42",
+      "--fingerprint-noise=false",
+      "--fingerprint-windows-font-metrics",
+      "--fingerprint-allow-3p-cookies",
+      "--fingerprint-storage-quota=5000",
+      "--fingerprint-screen-width=1920",
+      "--fingerprint-screen-height=1080"
+    ],
+    viewport: { width: 1920, height: 1080 }
+  });
+  assert.throws(() => normalizeConfig({ fingerprintSeed: "bad=value" }), /fingerprintSeed/);
+  assert.throws(() => normalizeConfig({ viewportWidth: 1920, viewportHeight: 0 }), /must both/);
+});
+
+test("plugin defaults disable detectable fingerprint noise without forcing a viewport", () => {
+  const options = buildCloakLaunchOptions(normalizeConfig());
+  assert.equal(options.args.includes("--fingerprint-noise=false"), true);
+  assert.equal("viewport" in options, false);
+});
 
 test("plugin exposes a compact native browser tool set and uses snapshot refs", async () => {
   const created = [];

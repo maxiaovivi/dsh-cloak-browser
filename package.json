@@ -13,6 +13,7 @@
   "files": [
     "lib",
     "bench",
+    "stealth/*.mjs",
     "docs",
     "cordis.patch.yml",
     "README.md",
@@ -38,10 +39,12 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:integration": "node --test test/*.integration.mjs",
+    "test:stealth": "node stealth/run.mjs",
+    "test:stealth:local": "node stealth/run.mjs --suite local",
     "benchmark": "node bench/benchmark.mjs",
     "benchmark:json": "node bench/benchmark.mjs --json",
     "benchmark:no-humanize": "node bench/benchmark.mjs --no-humanize",
-    "check": "node --check lib/plugin.mjs && node --check lib/policy.mjs && node --check lib/snapshot.mjs && node --check bench/benchmark.mjs"
+    "check": "node --check lib/plugin.mjs && node --check lib/policy.mjs && node --check lib/snapshot.mjs && node --check bench/benchmark.mjs && node --check stealth/detectors.mjs && node --check stealth/run.mjs"
   },
   "dsh": {
     "bundle": {
