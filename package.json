@@ -1,0 +1,56 @@
+{
+  "name": "dsh-cloak-browser",
+  "version": "0.1.0",
+  "description": "Native CloakBrowser tools for DeepSeek Harness with per-agent browser sessions and snapshot references.",
+  "author": "maxiaovivi",
+  "type": "module",
+  "main": "./lib/plugin.mjs",
+  "exports": {
+    ".": "./lib/plugin.mjs",
+    "./policy": "./lib/policy.mjs",
+    "./snapshot": "./lib/snapshot.mjs"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maxiaovivi/dsh-cloak-browser.git"
+  },
+  "homepage": "https://github.com/maxiaovivi/dsh-cloak-browser#readme",
+  "bugs": {
+    "url": "https://github.com/maxiaovivi/dsh-cloak-browser/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cloakbrowser",
+    "playwright",
+    "browser-automation",
+    "ai-agent"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check lib/plugin.mjs && node --check lib/policy.mjs && node --check lib/snapshot.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.17.4",
+    "cloakbrowser": "0.5.7",
+    "playwright-core": "1.62.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,24 @@
+# Thin native integration: DSH tools call CloakBrowser through a per-Agent session map.
+# Secrets are intentionally absent. CloakBrowser reads CLOAKBROWSER_LICENSE_KEY itself;
+# proxy credentials are read from the environment named by proxyEnv.
+- insert:
+    - id: cloak-browser
+      name: 'dsh-cloak-browser'
+      config:
+        headless: true
+        humanize: true
+        humanPreset: default
+        geoip: false
+        proxyEnv: CLOAKBROWSER_PROXY_URL
+        persistentProfileRoot: ''
+        allowedDomains: []
+        blockedDomains: []
+        blockPrivateNetworks: true
+        maxPages: 5
+        actionTimeoutMs: 15000
+        navigationTimeoutMs: 30000
+        maxSnapshotElements: 100
+        maxTextChars: 12000
+        screenshotFormat: jpeg
+        screenshotQuality: 80
+        routePrompt: true
