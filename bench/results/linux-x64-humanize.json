@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-14T18:00:58.285Z",
+  "environment": {
+    "platform": "linux 7.0.0-29-generic",
+    "architecture": "x64",
+    "node": "v24.19.0",
+    "cpu": "AMD Ryzen 9 7940HS w/ Radeon 780M Graphics",
+    "logicalCpus": 16,
+    "totalMemoryBytes": 15389937664,
+    "cloakBrowserVersion": "146.0.7680.177.5",
+    "cloakBrowserTier": "free",
+    "binaryWasCached": true
+  },
+  "workload": {
+    "localHttp": true,
+    "humanize": true,
+    "domInteractiveElements": 302,
+    "snapshotElementCap": 100,
+    "textCharacterCap": 12000,
+    "samples": 5
+  },
+  "metrics": {
+    "lazyBrowserOpen": { "samples": 3, "minMs": 178.8, "p50Ms": 187.14, "p95Ms": 634.59, "maxMs": 634.59, "meanMs": 333.51 },
+    "firstLazyBrowserOpenMs": 634.59,
+    "subsequentBrowserOpen": { "samples": 2, "minMs": 178.8, "p50Ms": 178.8, "p95Ms": 187.14, "maxMs": 187.14, "meanMs": 182.97 },
+    "localNavigationMs": 34.08,
+    "pageSnapshot": { "samples": 5, "minMs": 24.38, "p50Ms": 29.3, "p95Ms": 88.34, "maxMs": 88.34, "meanMs": 40.01 },
+    "snapshotElementsReturned": 100,
+    "textExtraction": { "samples": 5, "minMs": 1, "p50Ms": 1.2, "p95Ms": 1.62, "maxMs": 1.62, "meanMs": 1.23 },
+    "extractedCharacters": 12000,
+    "viewportScreenshot": { "samples": 5, "minMs": 48.03, "p50Ms": 51.09, "p95Ms": 59.88, "maxMs": 59.88, "meanMs": 52.1 },
+    "screenshotBytes": 846676,
+    "snapshotClickSnapshotWorkflow": { "samples": 3, "minMs": 6122, "p50Ms": 6273.26, "p95Ms": 6513.64, "maxMs": 6513.64, "meanMs": 6302.97 },
+    "snapshotTypeWorkflow": { "samples": 3, "minMs": 10897.3, "p50Ms": 11484.74, "p95Ms": 12985.67, "maxMs": 12985.67, "meanMs": 11789.24 },
+    "processTreeRssBytes": {
+      "before": 72204288,
+      "browserOpen": 921309184,
+      "afterClose": 248360960,
+      "browserDelta": 849104896,
+      "retainedAfterClose": 176156672
+    }
+  },
+  "notes": [
+    "The browser binary was already downloaded; download time is excluded.",
+    "Navigation targets a local HTTP server, so public-network latency is excluded.",
+    "Process-tree RSS is an approximate Linux snapshot and includes Node plus Chromium descendants.",
+    "Timings are end-to-end plugin tool-body timings and exclude LLM inference and the outer DSH policy/log pipeline."
+  ]
+}

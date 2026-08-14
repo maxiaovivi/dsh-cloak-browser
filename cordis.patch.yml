@@ -11,11 +11,19 @@
         geoip: false
         proxyEnv: CLOAKBROWSER_PROXY_URL
         persistentProfileRoot: ''
+        fingerprintSeed: ''
+        fingerprintNoise: false
+        fingerprintWindowsFontMetrics: false
+        allowThirdPartyCookies: false
+        fingerprintStorageQuotaMb: 0
+        viewportWidth: 0
+        viewportHeight: 0
         allowedDomains: []
         blockedDomains: []
         blockPrivateNetworks: true
         maxPages: 5
         actionTimeoutMs: 15000
+        typingTimeoutMs: 90000
         navigationTimeoutMs: 30000
         maxSnapshotElements: 100
         maxTextChars: 12000

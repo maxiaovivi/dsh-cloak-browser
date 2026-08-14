@@ -174,11 +174,18 @@ The default Bundle configuration is in [`cordis.patch.yml`](./cordis.patch.yml).
 | `geoip` | `false` | Derive locale/timezone from the proxy IP when supported |
 | `proxyEnv` | `CLOAKBROWSER_PROXY_URL` | Name of the environment variable containing the proxy URL |
 | `persistentProfileRoot` | empty | Root for hashed per-Agent persistent profiles |
+| `fingerprintSeed` | empty | Optional stable identity seed; use a different identity per unrelated user |
+| `fingerprintNoise` | `false` | Disable injected canvas/WebGL/audio/client-rect noise; this removed five CreepJS lies in the documented test |
+| `fingerprintWindowsFontMetrics` | `false` | Enable Chromium 148+ Windows font metrics; requires a real Windows font set on Linux |
+| `allowThirdPartyCookies` | `false` | Chromium 148+ compatibility switch for embedded reCAPTCHA/SSO/payment flows |
+| `fingerprintStorageQuotaMb` | `0` | Optional storage quota override; `0` keeps the upstream automatic value |
+| `viewportWidth`, `viewportHeight` | `0`, `0` | Optional matching viewport and fingerprint screen size; `0` keeps safer automatic handling |
 | `allowedDomains` | `[]` | Empty permits public hosts; supports exact and `*.example.com` patterns |
 | `blockedDomains` | `[]` | Host patterns denied before the allowlist |
 | `blockPrivateNetworks` | `true` | Block explicit localhost, private, link-local, and reserved IP URLs |
 | `maxPages` | `5` | Maximum tabs per Agent session |
 | `actionTimeoutMs` | `15000` | Ordinary Playwright action timeout |
+| `typingTimeoutMs` | `90000` | Longer timeout for deliberately slow humanized typing |
 | `navigationTimeoutMs` | `30000` | Navigation timeout |
 | `maxSnapshotElements` | `100` | Maximum refs returned by a snapshot |
 | `maxTextChars` | `12000` | Maximum returned page/extraction text |
@@ -244,6 +251,8 @@ Validation performed for this release:
 - A clean temporary DSH Web profile installation and full Cordis/Web startup.
 - A real free-tier CloakBrowser Chromium launch, navigation to
   `https://example.com`, and DOM snapshot extraction on Linux x64.
+- Upstream-equivalent local and public stealth detectors through both the plugin
+  and a direct CloakBrowser control; see the reproducible report below.
 - `npm audit`, syntax checks, and npm package dry-run.
 
 Run local checks with:
@@ -256,3 +265,27 @@ npm pack --dry-run
 ```
 
 The tests use a fake BrowserContext and do not download Chromium.
+
+## Stealth test results
+
+On the documented Linux host with free Chromium 146, headless mode, no proxy,
+and no Windows fonts, the plugin passed 5/6 core public detectors. A direct
+CloakBrowser `launchContext` control produced the identical result; both failed
+only Device & Browser Info's `hasInconsistentTimingResolution`. CreepJS improved
+from 5 lies to 0 after disabling fingerprint noise, so that is now the plugin
+default. The FingerprintJS demo still blocked this old binary/environment, while
+one reCAPTCHA v3 run scored 0.9 and a repeat was inconclusive.
+
+See [the bilingual methodology, commands, strict verdict rules, complete
+results, and upgrade path](./docs/STEALTH.md). Live detector results are
+environment- and time-dependent, not a guarantee for unrelated sites.
+
+## Performance
+
+On the documented Linux test host, cached browser startup was about 635 ms on
+the first lazy call and 183 ms afterward. A 100-ref snapshot took 29 ms P50,
+12,000-character extraction 1.2 ms, and a viewport screenshot 51 ms. With
+`humanize=false`, snapshot-click-snapshot took 161 ms; the default humanized
+workflow intentionally took 6.27 seconds. See the bilingual methodology,
+memory measurements, comparison table, and raw JSON in
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md).
