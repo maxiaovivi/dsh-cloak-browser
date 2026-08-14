@@ -23,8 +23,8 @@ npm run test:stealth
 # Fast, browser-only signals. No detector sites except example.com.
 npm run test:stealth:local
 
-# Upstream-aligned settings: stable test seed and fingerprint noise disabled.
-npm run test:stealth -- --profile hardened
+# Compare the old random-noise baseline.
+npm run test:stealth -- --profile baseline
 
 # Also run CreepJS, fingerprint-scan.com, FingerprintJS, and reCAPTCHA v3.
 npm run test:stealth -- --suite full --profile hardened
@@ -49,7 +49,7 @@ Useful CLI options:
 | Option | Meaning |
 |---|---|
 | `--suite local\|public\|full` | Select local, core public, or scored diagnostics |
-| `--profile baseline\|hardened` | Compare old upstream defaults with the plugin's safer stealth profile |
+| `--profile baseline\|hardened` | Compare the old random-noise baseline with improved plugin defaults; default is `hardened` |
 | `--adapter plugin\|upstream` | Test the DSH session path or direct CloakBrowser control |
 | `--detectors ID,ID` | Run a selected subset, such as `creepjs,recaptcha-v3` |
 | `--headed` | Use a visible browser; Linux servers need a real display or Xvfb |

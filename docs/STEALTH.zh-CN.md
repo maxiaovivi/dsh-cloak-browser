@@ -21,8 +21,8 @@ npm run test:stealth
 # 快速浏览器信号；除 example.com 外不访问 detector。
 npm run test:stealth:local
 
-# 上游推荐方向：固定测试 seed、关闭可检测的 fingerprint noise。
-npm run test:stealth -- --profile hardened
+# 对比旧的 random-noise baseline。
+npm run test:stealth -- --profile baseline
 
 # 额外运行 CreepJS、fingerprint-scan.com、FingerprintJS 和 reCAPTCHA v3。
 npm run test:stealth -- --suite full --profile hardened
@@ -46,7 +46,7 @@ npm run test:stealth -- --profile hardened
 | 参数 | 含义 |
 |---|---|
 | `--suite local\|public\|full` | 选择本地、核心公开或评分型诊断 |
-| `--profile baseline\|hardened` | 对比旧的上游默认值与插件改进配置 |
+| `--profile baseline\|hardened` | 对比旧 random-noise baseline 与插件改进配置；默认是 `hardened` |
 | `--adapter plugin\|upstream` | 测 DSH SessionMap 路径或 CloakBrowser 直接对照 |
 | `--detectors ID,ID` | 只运行指定项，例如 `creepjs,recaptcha-v3` |
 | `--headed` | 使用有界面浏览器；Linux Server 需要真实 display 或 Xvfb |

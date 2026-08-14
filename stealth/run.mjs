@@ -18,7 +18,7 @@ function parseOptions() {
 
 Options:
   --suite local|public|full       local signals; public detectors; or scored services (default: public)
-  --profile baseline|hardened    current defaults or upstream-aligned test settings (default: baseline)
+  --profile baseline|hardened    old random-noise baseline or improved plugin defaults (default: hardened)
   --adapter plugin|upstream      plugin SessionMap or direct launchContext control (default: plugin)
   --detectors ID,ID              run only selected detector IDs from the chosen suite
   --headed                       run with a visible browser (recommended with Xvfb on Linux)
@@ -33,7 +33,7 @@ CLOAKBROWSER_TEST_WINDOWS_FONT_METRICS=1.`);
     process.exit(0);
   }
   const suite = valueAfter("--suite") ?? "public";
-  const profile = valueAfter("--profile") ?? "baseline";
+  const profile = valueAfter("--profile") ?? "hardened";
   const adapter = valueAfter("--adapter") ?? "plugin";
   const detectorIds = valueAfter("--detectors")?.split(",").map((value) => value.trim()).filter(Boolean);
   if (!new Set(["local", "public", "full"]).has(suite)) throw new Error("--suite must be local, public, or full");
