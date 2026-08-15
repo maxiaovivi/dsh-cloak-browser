@@ -78,19 +78,12 @@ browser use it downloads and verifies a roughly 200 MB Chromium archive. The
 extracted cache can use substantially more disk space under `~/.cloakbrowser`.
 You do **not** need `playwright install chromium`.
 
-When a saved or environment license validates as the **Free plan**, the first
-`browser_open` for a new session does not launch Chromium. It returns a
-confirmation request, and the Agent asks whether another person or device is
-currently using that key. Only an explicit “no” lets the Agent retry with
-`free_session_in_use=false`; “yes” or an unknown answer leaves the browser
-stopped. Paid plans continue without this extra turn. The confirmation value is
-a tool-internal control populated by the Agent after the user's answer—users do
-not type tool JSON or change configuration.
-
-The plugin serializes concurrent Free-session launches inside one DSH process
-and reports local or license-server occupancy without retrying in a loop. It
-cannot revoke a session owned by another machine or an abnormal prior process;
-that server-side lease must close or expire upstream.
+When a saved or environment license validates as the **Free plan**, the plugin
+defaults to an available seat and launches without asking the user. It
+serializes concurrent Free-session launches inside one DSH process and reports
+local or license-server occupancy without retrying in a loop. It cannot revoke
+a session owned by another machine or an abnormal prior process; that
+server-side lease must close or expire upstream.
 
 When a proxy URL is present, the plugin enables CloakBrowser GeoIP matching
 automatically. Its first use may also download the approximately 70 MB GeoLite
@@ -153,9 +146,8 @@ browser state must survive across tool calls and must not leak between Agents.
   `covered by <none>` false positive during click/fill; other failures still
   fail closed.
 - Stable per-Agent fingerprint seeds when no seed is configured explicitly.
-- Automatic license-plan detection: validated Free keys require an availability
-  confirmation before each new session, while paid plans launch directly.
-  Concurrent local Free-session launches are serialized.
+- Automatic license-plan detection: validated Free keys launch without user
+  confirmation, while concurrent local Free-session launches are serialized.
 - Proxy-aware GeoIP consistency enabled automatically when the proxy
   environment variable is present; its runtime dependency is bundled.
 - Ephemeral contexts by default and per-Agent persistent profile directories
@@ -172,10 +164,8 @@ Recommended flow:
 
 ```text
 browser_open(url)
-  → validated Free key only: Agent asks whether anyone else/device is using it
-     → no: Agent retries browser_open with confirmation and launches
-     → yes/unknown: do not launch
-  → paid plan or keyless build: launches directly
+  → Free, paid, or keyless: launches directly without asking
+  → occupied Free seat: returns not_started without retrying in a loop
   → returns snapshot + refs
   → browser_click / browser_type / browser_select → returns next snapshot + refs
   → browser_close when the browser task is complete
@@ -187,7 +177,7 @@ an Agent wants to refresh its view.
 
 | Tool | Purpose |
 |---|---|
-| `browser_open` | Lazily open the session; validated Free keys first request user confirmation; with a URL, also return a snapshot |
+| `browser_open` | Lazily open the session without user confirmation; with a URL, also return a snapshot |
 | `browser_navigate` | Navigate and return a fresh snapshot with refs |
 | `browser_snapshot` | Explicitly refresh bounded page/frame text and refs |
 | `browser_click` | Click a ref and return the next snapshot |

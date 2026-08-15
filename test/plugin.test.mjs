@@ -402,7 +402,7 @@ test("text-only routes return screenshot metadata without storing an attachment"
   await harnessState.tools.get("browser_close").execute({}, exec);
 });
 
-test("validated Free keys ask before launch and respect the user's answer", async () => {
+test("validated Free keys launch directly without asking the user", async () => {
   const created = [];
   const { ctx, tools } = harness();
   const plugin = createCloakBrowserPlugin({
@@ -415,26 +415,13 @@ test("validated Free keys ask before launch and respect the user's answer", asyn
   plugin.apply(ctx, { routePrompt: false });
   const exec = execFor(agent("free-agent"));
 
-  const confirmation = await tools.get("browser_open").execute({ free_session_in_use: false }, exec);
-  assert.equal(confirmation.status, "confirmation_required");
-  assert.equal(confirmation.licenseTier, "free");
-  assert.match(confirmation.question, /当前是否有其他人/);
-  assert.equal(created.length, 0);
-
-  const occupied = await tools.get("browser_open").execute({ free_session_in_use: true }, exec);
-  assert.equal(occupied.status, "not_started");
-  assert.equal(occupied.source, "user");
-  assert.equal(created.length, 0);
-
-  const confirmationAgain = await tools.get("browser_open").execute({}, exec);
-  assert.equal(confirmationAgain.status, "confirmation_required");
-  const opened = await tools.get("browser_open").execute({ free_session_in_use: false }, exec);
+  const opened = await tools.get("browser_open").execute({}, exec);
   assert.equal(opened.status, "open");
   assert.equal(created.length, 1);
   await tools.get("browser_close").execute({}, exec);
 });
 
-test("paid keys launch directly without a confirmation turn", async () => {
+test("paid keys launch directly", async () => {
   const created = [];
   const { ctx, tools } = harness();
   const plugin = createCloakBrowserPlugin({
@@ -472,11 +459,9 @@ test("a Free key has only one local Agent owner and concurrent launches are seri
   const firstExec = execFor(agent("free-first"));
   const secondExec = execFor(agent("free-second"));
 
-  assert.equal((await tools.get("browser_open").execute({}, firstExec)).status, "confirmation_required");
-  assert.equal((await tools.get("browser_open").execute({}, secondExec)).status, "confirmation_required");
-  const first = tools.get("browser_open").execute({ free_session_in_use: false }, firstExec);
+  const first = tools.get("browser_open").execute({}, firstExec);
   await new Promise((resolve) => setImmediate(resolve));
-  const second = tools.get("browser_open").execute({ free_session_in_use: false }, secondExec);
+  const second = tools.get("browser_open").execute({}, secondExec);
   releaseFirstLaunch();
 
   assert.equal((await first).status, "open");
@@ -486,14 +471,13 @@ test("a Free key has only one local Agent owner and concurrent launches are seri
   assert.equal(created.length, 1);
   await tools.get("browser_close").execute({}, firstExec);
 
-  assert.equal((await tools.get("browser_open").execute({}, secondExec)).status, "confirmation_required");
-  const openedSecond = await tools.get("browser_open").execute({ free_session_in_use: false }, secondExec);
+  const openedSecond = await tools.get("browser_open").execute({}, secondExec);
   assert.equal(openedSecond.status, "open");
   assert.equal(created.length, 2);
   await tools.get("browser_close").execute({}, secondExec);
 });
 
-test("Free keys cannot be launched implicitly by a non-open browser tool", async () => {
+test("a Free key defaults to available for a direct non-open browser tool", async () => {
   const { ctx, tools } = harness();
   const plugin = createCloakBrowserPlugin({
     licenseKeyResolver: async () => "cb_test_free",
@@ -503,10 +487,11 @@ test("Free keys cannot be launched implicitly by a non-open browser tool", async
     })
   });
   plugin.apply(ctx, { routePrompt: false });
-  await assert.rejects(
-    tools.get("browser_navigate").execute({ url: "https://example.com" }, execFor(agent("free-direct"))),
-    /call browser_open with free_session_in_use=false/
+  const result = await tools.get("browser_navigate").execute(
+    { url: "https://example.com" },
+    execFor(agent("free-direct"))
   );
+  assert.equal(result.status, "navigated");
 });
 
 test("a Free license-server seat conflict becomes a stable result instead of a retryable error", async () => {
@@ -524,12 +509,7 @@ test("a Free license-server seat conflict becomes a stable result instead of a r
   });
   plugin.apply(ctx, { routePrompt: false });
 
-  const exec = execFor(agent("remote-seat"));
-  assert.equal((await tools.get("browser_open").execute({}, exec)).status, "confirmation_required");
-  const result = await tools.get("browser_open").execute(
-    { free_session_in_use: false },
-    exec
-  );
+  const result = await tools.get("browser_open").execute({}, execFor(agent("remote-seat")));
   assert.equal(result.status, "not_started");
   assert.equal(result.source, "license_server");
   assert.equal(launches, 1);
