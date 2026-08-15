@@ -1,6 +1,6 @@
 {
   "name": "dsh-cloak-browser",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Native CloakBrowser tools for DeepSeek Harness with per-agent browser sessions and snapshot references.",
   "author": "maxiaovivi",
   "type": "module",

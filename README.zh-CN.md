@@ -73,6 +73,16 @@ dsh --profile web
 约 200MB 的 Chromium 压缩包，解压后的 `~/.cloakbrowser` 缓存会占用更多磁盘空间。不需要执行
 `playwright install chromium`。
 
+当环境变量或本地保存的 License 被验证为 **Free plan** 时，新会话第一次调用
+`browser_open` 不会启动 Chromium，而是返回确认请求。Agent 会询问当前是否有其他人或设备
+正在使用这个 Key；只有用户明确回答“没有”，Agent 才会在第二次调用中自动带上
+`free_session_in_use=false` 并启动。回答“有”或“不确定”时不会启动。付费套餐不增加这一轮确认。
+该参数是 Agent 根据用户回答填写的 Tool 内部控制，用户不需要手写 Tool JSON 或修改配置。
+
+插件会串行化同一 DSH 进程内的 Free 会话并发启动，并在本地或 License Server 已占用时返回
+明确状态，不再循环重试。插件无法撤销另一台机器或异常退出旧进程持有的服务器端租约；这类
+租约仍需由上游关闭或等待过期。
+
 存在代理 URL 时，插件会自动启用 CloakBrowser GeoIP 匹配。第一次使用可能还会把约 70MB 的
 GeoLite 数据库下载到同一缓存；`mmdb-lib` 已随插件安装，不需要再执行安装命令。
 
@@ -119,6 +129,8 @@ DSH 原生 Tool → per-Agent BrowserContext Map → CloakBrowser → Playwright
 - CloakBrowser 人类化点击/填写出现特定的 `covered by <none>` 执行前误报时自动重试一次；
   其他错误仍安全失败。
 - 未显式配置 seed 时，自动为每个 Agent 派生稳定且哈希化的 fingerprint seed。
+- 自动识别 License 套餐：验证为 Free 的 Key 在每次新建会话前要求一次占用确认，付费套餐直接启动；
+  同一 DSH 进程内的 Free 会话并发启动会被串行化。
 - 检测到代理环境变量时自动启用 GeoIP 一致性，所需运行依赖随插件安装。
 - 默认使用临时 Context；显式配置后可使用按 Agent 隔离的持久 profile。
 - 支持域名允许/拒绝规则、显式私网地址拦截、页面/输出限制、协作取消和浏览器清理。
@@ -129,7 +141,12 @@ DSH 原生 Tool → per-Agent BrowserContext Map → CloakBrowser → Playwright
 推荐流程：
 
 ```text
-browser_open(url) / browser_navigate(url) → 返回 snapshot + refs
+browser_open(url)
+  → 仅验证为 Free 的 Key：Agent 询问是否有其他人/设备正在使用
+     → 没有：Agent 携带确认再次调用 browser_open 并启动
+     → 有/不确定：不启动
+  → 付费套餐或无 Key 本地构建：直接启动
+  → 返回 snapshot + refs
   → browser_click / browser_type / browser_select → 返回下一份 snapshot + refs
   → 浏览器任务完成后 browser_close
 ```
@@ -139,7 +156,7 @@ browser_open(url) / browser_navigate(url) → 返回 snapshot + refs
 
 | Tool | 功能 |
 |---|---|
-| `browser_open` | 延迟打开会话；传入 URL 时同时返回 Snapshot |
+| `browser_open` | 延迟打开会话；验证为 Free 的 Key 会先请求用户确认；传入 URL 时同时返回 Snapshot |
 | `browser_navigate` | 导航并返回含 ref 的新 Snapshot |
 | `browser_snapshot` | 显式刷新有上限的页面/iframe 文本和 ref |
 | `browser_click` | 点击 ref 并返回下一份 Snapshot |
@@ -233,7 +250,7 @@ CloakBrowser wrapper 源码使用 MIT，但其下载的 Chromium 二进制由 Cl
 
 | 组件 | 版本 |
 |---|---|
-| dsh-cloak-browser | `0.2.0` |
+| dsh-cloak-browser | `0.3.0` |
 | DeepSeek Harness packages | `0.1.0-rc.6` |
 | CloakBrowser wrapper | `0.5.7` |
 | Playwright Core | `1.62.0` |
