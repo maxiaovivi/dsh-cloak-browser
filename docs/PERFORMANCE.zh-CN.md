@@ -8,6 +8,21 @@
 7940HS、15GB 内存、CloakBrowser 免费版 Chromium 146，浏览器二进制已经缓存。目标是包含
 302 个交互元素的本机 HTTP 页面；快照上限为 100 个 ref 和 12,000 个文本字符。
 
+## 自动工作流对比
+
+0.2 版默认在导航和交互 Tool 中返回一份新 Snapshot，因此到达相同页面状态所需的 DSH/LLM
+Tool 边界明显减少：
+
+| 等价工作流 | 手工 Snapshot | 自动 Snapshot | 减少 |
+|---|---:|---:|---:|
+| 导航后观察 | 2 次 Tool 调用 | 1 次 Tool 调用 | 50% |
+| Snapshot 后操作并观察 | 3 次 Tool 调用 | 2 次 Tool 调用 | 33% |
+
+成对基准中两种模式执行相同浏览器操作，并返回相同的最终 100-ref Snapshot。关闭 humanize
+时，点击/观察 P50 为 205.84ms 对 202.36ms，输入/观察为 171.37ms 对 164.91ms；默认开启
+humanize 时分别为 7,371.96ms 对 6,876.06ms，以及 10,158.49ms 对 9,979.18ms。这说明减少
+Tool 调用没有以浏览器执行性能为代价；模型往返时间没有计入，而减少调用主要会在这里继续获益。
+
 | 端到端 Tool 操作 | `humanize=true` P50 | `humanize=false` P50 |
 |---|---:|---:|
 | 首次延迟启动浏览器 | 635 ms | 651 ms |
@@ -44,11 +59,12 @@ Linux 进程树 RSS 近似增加量：开启 humanize 时约 810MiB，关闭时�
 - 人类化工作流取 3 个样本，观测操作取 5 个样本；结果描述当前主机，不是普遍性能保证。
 - 截图由 Chromium 真实生成，但附件存储使用内存 mock，不包含持久存储延迟。
 
-原始结果保存在 [`bench/results`](../bench/results)，可重新运行：
+原始结果（包括自动工作流成对对比）保存在 [`bench/results`](../bench/results)，可重新运行：
 
 ```bash
 npm run benchmark:json
 node bench/benchmark.mjs --json --no-humanize
+node bench/benchmark.mjs --json --no-humanize --no-auto-snapshot
 ```
 
 通过 `BENCH_SAMPLES=<n>` 增加默认的 5 个观测样本。

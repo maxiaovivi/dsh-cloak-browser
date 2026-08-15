@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-15T02:25:28.986Z",
+  "environment": {
+    "platform": "linux 7.0.0-29-generic",
+    "architecture": "x64",
+    "node": "v24.19.0",
+    "cpu": "AMD Ryzen 9 7940HS w/ Radeon 780M Graphics",
+    "cloakBrowserVersion": "146.0.7680.177.5",
+    "cloakBrowserTier": "free",
+    "binaryWasCached": true
+  },
+  "workload": {
+    "localHttp": true,
+    "domInteractiveElements": 302,
+    "snapshotElementCap": 100,
+    "textCharacterCap": 12000,
+    "samplesPerWorkflow": 3
+  },
+  "comparison": {
+    "humanized": {
+      "manualSnapshots": {
+        "clickObserveP50Ms": 7371.96,
+        "typeObserveP50Ms": 10158.49,
+        "navigateThenObserveToolCalls": 2,
+        "actionThenObserveToolCalls": 3
+      },
+      "automaticSnapshots": {
+        "clickObserveP50Ms": 6876.06,
+        "typeObserveP50Ms": 9979.18,
+        "navigateThenObserveToolCalls": 1,
+        "actionThenObserveToolCalls": 2
+      }
+    },
+    "nonHumanized": {
+      "manualSnapshots": {
+        "clickObserveP50Ms": 205.84,
+        "typeObserveP50Ms": 171.37,
+        "navigateThenObserveToolCalls": 2,
+        "actionThenObserveToolCalls": 3
+      },
+      "automaticSnapshots": {
+        "clickObserveP50Ms": 202.36,
+        "typeObserveP50Ms": 164.91,
+        "navigateThenObserveToolCalls": 1,
+        "actionThenObserveToolCalls": 2
+      }
+    }
+  },
+  "notes": [
+    "Manual and automatic runs perform the same browser work and return a final snapshot.",
+    "Automatic results combine the action and final observation in one DSH tool result.",
+    "Timings exclude LLM inference, so the measured improvement primarily records fewer tool boundaries without browser-work regression."
+  ]
+}

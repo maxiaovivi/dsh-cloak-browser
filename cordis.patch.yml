@@ -8,7 +8,7 @@
         headless: true
         humanize: true
         humanPreset: default
-        geoip: false
+        geoip: auto
         proxyEnv: CLOAKBROWSER_PROXY_URL
         persistentProfileRoot: ''
         fingerprintSeed: ''
@@ -27,6 +27,7 @@
         navigationTimeoutMs: 30000
         maxSnapshotElements: 100
         maxTextChars: 12000
+        autoSnapshot: true
         screenshotFormat: jpeg
         screenshotQuality: 80
         routePrompt: true
