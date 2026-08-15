@@ -78,6 +78,13 @@ browser use it downloads and verifies a roughly 200 MB Chromium archive. The
 extracted cache can use substantially more disk space under `~/.cloakbrowser`.
 You do **not** need `playwright install chromium`.
 
+When a saved or environment license validates as the **Free plan**, the plugin
+defaults to an available seat and launches without asking the user. It
+serializes concurrent Free-session launches inside one DSH process and reports
+local or license-server occupancy without retrying in a loop. It cannot revoke
+a session owned by another machine or an abnormal prior process; that
+server-side lease must close or expire upstream.
+
 When a proxy URL is present, the plugin enables CloakBrowser GeoIP matching
 automatically. Its first use may also download the approximately 70 MB GeoLite
 database into the same cache; `mmdb-lib` is already included, so there is no
@@ -139,6 +146,8 @@ browser state must survive across tool calls and must not leak between Agents.
   `covered by <none>` false positive during click/fill; other failures still
   fail closed.
 - Stable per-Agent fingerprint seeds when no seed is configured explicitly.
+- Automatic license-plan detection: validated Free keys launch without user
+  confirmation, while concurrent local Free-session launches are serialized.
 - Proxy-aware GeoIP consistency enabled automatically when the proxy
   environment variable is present; its runtime dependency is bundled.
 - Ephemeral contexts by default and per-Agent persistent profile directories
@@ -154,7 +163,10 @@ browser state must survive across tool calls and must not leak between Agents.
 Recommended flow:
 
 ```text
-browser_open(url) / browser_navigate(url) → returns snapshot + refs
+browser_open(url)
+  → Free, paid, or keyless: launches directly without asking
+  → occupied Free seat: returns not_started without retrying in a loop
+  → returns snapshot + refs
   → browser_click / browser_type / browser_select → returns next snapshot + refs
   → browser_close when the browser task is complete
 ```
@@ -165,7 +177,7 @@ an Agent wants to refresh its view.
 
 | Tool | Purpose |
 |---|---|
-| `browser_open` | Lazily open the session; with a URL, also return a snapshot |
+| `browser_open` | Lazily open the session without user confirmation; with a URL, also return a snapshot |
 | `browser_navigate` | Navigate and return a fresh snapshot with refs |
 | `browser_snapshot` | Explicitly refresh bounded page/frame text and refs |
 | `browser_click` | Click a ref and return the next snapshot |
@@ -268,7 +280,7 @@ The current release pins:
 
 | Component | Version |
 |---|---|
-| dsh-cloak-browser | `0.2.0` |
+| dsh-cloak-browser | `0.3.0` |
 | DeepSeek Harness packages | `0.1.0-rc.6` |
 | CloakBrowser wrapper | `0.5.7` |
 | Playwright Core | `1.62.0` |

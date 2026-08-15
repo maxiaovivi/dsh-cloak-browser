@@ -402,6 +402,136 @@ test("text-only routes return screenshot metadata without storing an attachment"
   await harnessState.tools.get("browser_close").execute({}, exec);
 });
 
+test("validated Free keys launch directly without asking the user", async () => {
+  const created = [];
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_free",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "free", expires: null }),
+      launchContext: async () => { const context = new FakeContext(); created.push(context); return context; }
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+  const exec = execFor(agent("free-agent"));
+
+  const opened = await tools.get("browser_open").execute({}, exec);
+  assert.equal(opened.status, "open");
+  assert.equal(created.length, 1);
+  await tools.get("browser_close").execute({}, exec);
+});
+
+test("paid keys launch directly", async () => {
+  const created = [];
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_paid",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "solo", expires: null }),
+      launchContext: async () => { const context = new FakeContext(); created.push(context); return context; }
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+
+  const result = await tools.get("browser_open").execute({}, execFor(agent("paid-agent")));
+  assert.equal(result.status, "open");
+  assert.equal(created.length, 1);
+});
+
+test("a Free key has only one local Agent owner and concurrent launches are serialized", async () => {
+  const created = [];
+  let releaseFirstLaunch;
+  const firstLaunchGate = new Promise((resolve) => { releaseFirstLaunch = resolve; });
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_free",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "free", expires: null }),
+      launchContext: async () => {
+        if (created.length === 0) await firstLaunchGate;
+        const context = new FakeContext();
+        created.push(context);
+        return context;
+      }
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+  const firstExec = execFor(agent("free-first"));
+  const secondExec = execFor(agent("free-second"));
+
+  const first = tools.get("browser_open").execute({}, firstExec);
+  await new Promise((resolve) => setImmediate(resolve));
+  const second = tools.get("browser_open").execute({}, secondExec);
+  releaseFirstLaunch();
+
+  assert.equal((await first).status, "open");
+  const blocked = await second;
+  assert.equal(blocked.status, "not_started");
+  assert.equal(blocked.source, "local");
+  assert.equal(created.length, 1);
+  await tools.get("browser_close").execute({}, firstExec);
+
+  const openedSecond = await tools.get("browser_open").execute({}, secondExec);
+  assert.equal(openedSecond.status, "open");
+  assert.equal(created.length, 2);
+  await tools.get("browser_close").execute({}, secondExec);
+});
+
+test("a Free key defaults to available for a direct non-open browser tool", async () => {
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_free",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "free", expires: null }),
+      launchContext: async () => new FakeContext()
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+  const result = await tools.get("browser_navigate").execute(
+    { url: "https://example.com" },
+    execFor(agent("free-direct"))
+  );
+  assert.equal(result.status, "navigated");
+});
+
+test("a Free license-server seat conflict becomes a stable result instead of a retryable error", async () => {
+  let launches = 0;
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_free",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "free", expires: null }),
+      launchContext: async () => {
+        launches += 1;
+        throw new Error("CloakBrowser Pro: session limit reached for your plan");
+      }
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+
+  const result = await tools.get("browser_open").execute({}, execFor(agent("remote-seat")));
+  assert.equal(result.status, "not_started");
+  assert.equal(result.source, "license_server");
+  assert.equal(launches, 1);
+});
+
+test("post-launch setup failures close the browser context", async () => {
+  const context = new FakeContext();
+  context.route = async () => { throw new Error("route setup failed"); };
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({
+    licenseKeyResolver: async () => "cb_test_paid",
+    browserApiLoader: async () => ({
+      validateLicense: async () => ({ valid: true, plan: "solo", expires: null }),
+      launchContext: async () => context
+    })
+  });
+  plugin.apply(ctx, { routePrompt: false });
+
+  await assert.rejects(tools.get("browser_open").execute({}, execFor(agent("setup-failure"))), /route setup failed/);
+  assert.equal(context.closed, true);
+});
+
 test("an abort during lazy launch closes the newly created BrowserContext", async () => {
   let context;
   const { ctx, tools } = harness();
