@@ -29,6 +29,17 @@ dsh --profile web
 with another profile name if that profile provides the DSH `tools` and
 `attachments` services.
 
+Version 0.1.1 and newer reuse the profile's existing `dsh-tools` and `dsh-llm`
+runtime instances. This prevents the duplicate-runtime error reported as
+`Cannot read properties of undefined (reading 'prepare')`.
+
+If version 0.1.0 was previously installed, remove it once before reinstalling:
+
+```bash
+dsh plugin --profile web remove -w dsh-cloak-browser
+dsh plugin --profile web add -w github:maxiaovivi/dsh-cloak-browser
+```
+
 ### Install from a local clone
 
 Use this path when developing or auditing the plugin:
@@ -37,18 +48,19 @@ Use this path when developing or auditing the plugin:
 git clone https://github.com/maxiaovivi/dsh-cloak-browser.git
 cd dsh-cloak-browser
 npm ci
+plugin_tarball=$(npm pack --silent)
 
 # Ubuntu/Debian only; this may request sudo permission.
 npx playwright-core install-deps chromium
 
-dsh plugin --profile web add -w "$PWD"
+dsh plugin --profile web add -w "$PWD/$plugin_tarball"
 dsh --profile web --dump-config | grep -A24 cloak-browser
 dsh --profile web
 ```
 
-The GitHub installation installs package dependencies through pnpm. A local
-link requires `npm ci` in the cloned directory so Node can resolve its runtime
-dependencies.
+The GitHub installation installs package dependencies through pnpm. The local
+workflow installs a packed artifact rather than linking the development tree,
+so development-only copies of DSH host packages cannot enter the profile.
 
 ### License and proxy environment
 

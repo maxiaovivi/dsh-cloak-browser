@@ -28,6 +28,16 @@ dsh --profile web
 DSH profile 是 pnpm workspace root，所以需要 `-w`。如果其他 profile 同时提供 DSH
 `tools` 和 `attachments` 服务，也可以把 `web` 换成对应的 profile 名称。
 
+从 0.1.1 开始，插件会复用 profile 已有的 `dsh-tools` 和 `dsh-llm` 运行时实例，避免重复
+运行时引发 `Cannot read properties of undefined (reading 'prepare')`。
+
+如果之前安装过 0.1.0，请先移除一次再重新安装：
+
+```bash
+dsh plugin --profile web remove -w dsh-cloak-browser
+dsh plugin --profile web add -w github:maxiaovivi/dsh-cloak-browser
+```
+
 ### 从本地克隆安装
 
 开发或审计插件时使用这种方式：
@@ -36,17 +46,18 @@ DSH profile 是 pnpm workspace root，所以需要 `-w`。如果其他 profile �
 git clone https://github.com/maxiaovivi/dsh-cloak-browser.git
 cd dsh-cloak-browser
 npm ci
+plugin_tarball=$(npm pack --silent)
 
 # 仅 Ubuntu/Debian；这一步可能请求 sudo 权限。
 npx playwright-core install-deps chromium
 
-dsh plugin --profile web add -w "$PWD"
+dsh plugin --profile web add -w "$PWD/$plugin_tarball"
 dsh --profile web --dump-config | grep -A24 cloak-browser
 dsh --profile web
 ```
 
-GitHub 安装会由 pnpm 安装运行依赖。本地 link 安装则需要先在克隆目录执行 `npm ci`，确保
-Node 能找到插件依赖。
+GitHub 安装会由 pnpm 安装运行依赖。本地流程安装打包产物而不是链接开发目录，避免开发专用
+的 DSH 宿主包副本进入 profile。
 
 ### License 和代理环境变量
 
