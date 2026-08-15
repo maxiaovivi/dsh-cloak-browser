@@ -66,6 +66,11 @@ browser use it downloads and verifies a roughly 200 MB Chromium archive. The
 extracted cache can use substantially more disk space under `~/.cloakbrowser`.
 You do **not** need `playwright install chromium`.
 
+When a proxy URL is present, the plugin enables CloakBrowser GeoIP matching
+automatically. Its first use may also download the approximately 70 MB GeoLite
+database into the same cache; `mmdb-lib` is already included, so there is no
+separate install command.
+
 ### Uninstall
 
 ```bash
@@ -108,13 +113,22 @@ browser state must survive across tool calls and must not leak between Agents.
 - Lazy browser startup: Chromium starts only when an Agent calls a browser tool.
 - One isolated BrowserContext per Agent, automatically closed on
   `agent/disposed` or plugin unload.
-- Bounded page snapshots with short-lived element references such as
-  `p1:s3:e8`; stale references fail closed after page mutations.
+- Automatic bounded page snapshots after navigation and interaction, with
+  short-lived element references such as `p1:s3:e8`. Agents can continue from
+  the returned state without a separate observation call.
+- Snapshot and interaction support for controls inside attached iframes, plus
+  form states such as selected, expanded, required, invalid, and read-only.
 - Navigation, click, fill, select, keyboard, wait, extraction, screenshot, tab,
   and lifecycle tools.
 - Durable DSH image attachments for image-capable models and text snapshot
   fallback for text-only routes.
 - Optional humanized mouse, typing, and scrolling through CloakBrowser.
+- One automatic retry for CloakBrowser's specific pre-action
+  `covered by <none>` false positive during click/fill; other failures still
+  fail closed.
+- Stable per-Agent fingerprint seeds when no seed is configured explicitly.
+- Proxy-aware GeoIP consistency enabled automatically when the proxy
+  environment variable is present; its runtime dependency is bundled.
 - Ephemeral contexts by default and per-Agent persistent profile directories
   when explicitly enabled.
 - Domain allow/deny rules, explicit local/private-address blocking, page and
@@ -128,23 +142,25 @@ browser state must survive across tool calls and must not leak between Agents.
 Recommended flow:
 
 ```text
-browser_open / browser_navigate
-  → browser_snapshot
-  → browser_click / browser_type / browser_select
-  → browser_snapshot again after the page changes
+browser_open(url) / browser_navigate(url) → returns snapshot + refs
+  → browser_click / browser_type / browser_select → returns next snapshot + refs
   → browser_close when the browser task is complete
 ```
 
+The default flow needs no manual `browser_snapshot` between actions. The
+explicit snapshot tool remains available when a page changes independently or
+an Agent wants to refresh its view.
+
 | Tool | Purpose |
 |---|---|
-| `browser_open` | Lazily open the current Agent's browser session |
-| `browser_navigate` | Navigate the active tab to an allowed URL |
-| `browser_snapshot` | Return bounded page text and interactive element refs |
-| `browser_click` | Click a ref from the latest snapshot |
-| `browser_type` | Fill a textbox and optionally press Enter |
-| `browser_select` | Select an option in a `<select>` element |
-| `browser_press` | Press a bounded set of navigation keys |
-| `browser_wait` | Wait for text or for a short interval |
+| `browser_open` | Lazily open the session; with a URL, also return a snapshot |
+| `browser_navigate` | Navigate and return a fresh snapshot with refs |
+| `browser_snapshot` | Explicitly refresh bounded page/frame text and refs |
+| `browser_click` | Click a ref and return the next snapshot |
+| `browser_type` | Fill a textbox, optionally submit, and return the next snapshot |
+| `browser_select` | Select an option and return the next snapshot |
+| `browser_press` | Press a bounded navigation key and return the next snapshot |
+| `browser_wait` | Wait for text/time and return the resulting snapshot |
 | `browser_extract` | Extract bounded text, HTML, or an attribute without arbitrary JS |
 | `browser_screenshot` | Attach an image on vision routes or return metadata on text routes |
 | `browser_tabs` | List, select, or close tabs |
@@ -171,10 +187,10 @@ The default Bundle configuration is in [`cordis.patch.yml`](./cordis.patch.yml).
 | `headless` | `true` | Run Chromium without a visible window |
 | `humanize` | `true` | Enable CloakBrowser humanized interactions |
 | `humanPreset` | `default` | `default` or `careful` behavior preset |
-| `geoip` | `false` | Derive locale/timezone from the proxy IP when supported |
+| `geoip` | `auto` | Automatically derive locale/timezone when `proxyEnv` is set; accepts `true` or `false` overrides |
 | `proxyEnv` | `CLOAKBROWSER_PROXY_URL` | Name of the environment variable containing the proxy URL |
 | `persistentProfileRoot` | empty | Root for hashed per-Agent persistent profiles |
-| `fingerprintSeed` | empty | Optional stable identity seed; use a different identity per unrelated user |
+| `fingerprintSeed` | empty | Empty derives a stable, hashed per-Agent seed automatically; an explicit seed overrides it |
 | `fingerprintNoise` | `false` | Disable injected canvas/WebGL/audio/client-rect noise; this removed five CreepJS lies in the documented test |
 | `fingerprintWindowsFontMetrics` | `false` | Enable Chromium 148+ Windows font metrics; requires a real Windows font set on Linux |
 | `allowThirdPartyCookies` | `false` | Chromium 148+ compatibility switch for embedded reCAPTCHA/SSO/payment flows |
@@ -189,6 +205,7 @@ The default Bundle configuration is in [`cordis.patch.yml`](./cordis.patch.yml).
 | `navigationTimeoutMs` | `30000` | Navigation timeout |
 | `maxSnapshotElements` | `100` | Maximum refs returned by a snapshot |
 | `maxTextChars` | `12000` | Maximum returned page/extraction text |
+| `autoSnapshot` | `true` | Include a fresh bounded snapshot in navigation and interaction results |
 | `screenshotFormat` | `jpeg` | `jpeg` or `png` |
 | `screenshotQuality` | `80` | JPEG quality |
 | `routePrompt` | `true` | Install browser-selection guidance in the system prompt |
@@ -239,6 +256,7 @@ The current release pins:
 
 | Component | Version |
 |---|---|
+| dsh-cloak-browser | `0.2.0` |
 | DeepSeek Harness packages | `0.1.0-rc.6` |
 | CloakBrowser wrapper | `0.5.7` |
 | Playwright Core | `1.62.0` |
@@ -246,11 +264,13 @@ The current release pins:
 
 Validation performed for this release:
 
-- Unit tests for domain policy, private-host rejection, snapshot refs, stale-ref
-  rejection, per-Agent isolation, attachment output, and cleanup.
+- Unit tests for domain policy, private-host rejection, automatic and iframe
+  snapshot refs, stale-ref rejection, safe actionability retries, stable
+  per-Agent seeds, Agent isolation, attachment output, and cleanup.
 - A clean temporary DSH Web profile installation and full Cordis/Web startup.
 - A real free-tier CloakBrowser Chromium launch, navigation to
-  `https://example.com`, and DOM snapshot extraction on Linux x64.
+  a local page, iframe discovery, ref validation, and screenshot capture on
+  Linux x64.
 - Upstream-equivalent local and public stealth detectors through both the plugin
   and a direct CloakBrowser control; see the reproducible report below.
 - `npm audit`, syntax checks, and npm package dry-run.
@@ -286,6 +306,8 @@ On the documented Linux test host, cached browser startup was about 635 ms on
 the first lazy call and 183 ms afterward. A 100-ref snapshot took 29 ms P50,
 12,000-character extraction 1.2 ms, and a viewport screenshot 51 ms. With
 `humanize=false`, snapshot-click-snapshot took 161 ms; the default humanized
-workflow intentionally took 6.27 seconds. See the bilingual methodology,
-memory measurements, comparison table, and raw JSON in
+workflow intentionally took 6.27 seconds. Automatic observation reduces
+navigate/observe from two Tool calls to one and action/observe workflows from
+three calls to two without a measured browser-time regression. See the
+bilingual methodology, memory measurements, comparison table, and raw JSON in
 [`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md).

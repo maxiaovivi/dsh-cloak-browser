@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCloakLaunchOptions, createCloakBrowserPlugin, normalizeConfig } from "../lib/plugin.mjs";
+import { buildCloakLaunchOptions, createCloakBrowserPlugin, fingerprintSeedForAgent, normalizeConfig } from "../lib/plugin.mjs";
 
 const ITEMS = [
   {
@@ -42,18 +42,34 @@ class FakeLocator {
     this.index = index;
   }
 
-  async evaluateAll() { return ITEMS; }
+  async evaluateAll() { return this.page.items ?? ITEMS; }
   nth(index) { return new FakeLocator(this.page, "interactive", index); }
   async evaluate() {
-    const item = ITEMS[this.index];
+    const item = (this.page.items ?? ITEMS)[this.index];
     return { tag: item.tag, role: item.role, name: item.name };
   }
   async scrollIntoViewIfNeeded() {}
-  async click() { this.page.clicks += 1; }
-  async fill(text) { this.page.filled = text; }
+  async click() {
+    if (this.page.failNextClick) {
+      this.page.failNextClick = false;
+      const error = new Error("element failed pointer_events check: element is covered by <none>");
+      error.name = "ElementNotReceivingEventsError";
+      throw error;
+    }
+    this.page.clicks += 1;
+  }
+  async fill(text) {
+    if (this.page.failNextFill) {
+      this.page.failNextFill = false;
+      const error = new Error("element failed pointer_events check: element is covered by <none>");
+      error.name = "ElementNotReceivingEventsError";
+      throw error;
+    }
+    this.page.filled = text;
+  }
   async press(key) { this.page.lastKey = key; }
   async selectOption(value) { this.page.selected = value; return [value]; }
-  async innerText() { return this.kind === "body" ? "Example body" : "Continue"; }
+  async innerText() { return this.kind === "body" ? (this.page.bodyText ?? "Example body") : "Continue"; }
   async innerHTML() { return this.kind === "body" ? "<main>Example body</main>" : "Continue"; }
   async getAttribute(name) { return name === "role" ? "button" : null; }
 }
@@ -66,6 +82,7 @@ class FakePage {
     this.filled = "";
     this.selected = "";
     this.lastKey = "";
+    this.childFrames = [];
     this.keyboard = { press: async (key) => { this.lastKey = key; } };
   }
 
@@ -79,6 +96,25 @@ class FakePage {
   async waitForTimeout() {}
   getByText() { return { first: () => ({ waitFor: async () => {} }) }; }
   async screenshot() { return Buffer.from("fake-jpeg"); }
+  frames() { return [this, ...this.childFrames]; }
+  mainFrame() { return this; }
+  name() { return ""; }
+}
+
+class FakeFrame {
+  constructor(url, name, items, bodyText) {
+    this.currentUrl = url;
+    this.frameName = name;
+    this.items = items;
+    this.bodyText = bodyText;
+    this.clicks = 0;
+  }
+
+  locator(selector) { return new FakeLocator(this, selector === "body" ? "body" : "interactive"); }
+  url() { return this.currentUrl; }
+  name() { return this.frameName; }
+  isDetached() { return false; }
+  async waitForTimeout() {}
 }
 
 class FakeContext {
@@ -183,6 +219,11 @@ test("plugin defaults disable detectable fingerprint noise without forcing a vie
   const options = buildCloakLaunchOptions(normalizeConfig());
   assert.equal(options.args.includes("--fingerprint-noise=false"), true);
   assert.equal("viewport" in options, false);
+  assert.equal(options.geoip, false);
+  assert.equal(buildCloakLaunchOptions(normalizeConfig(), { CLOAKBROWSER_PROXY_URL: "socks5://proxy.example:1080" }).geoip, true);
+  assert.equal(buildCloakLaunchOptions(normalizeConfig({ geoip: false }), { CLOAKBROWSER_PROXY_URL: "socks5://proxy.example:1080" }).geoip, false);
+  assert.equal(fingerprintSeedForAgent(agent("stable-agent")), fingerprintSeedForAgent(agent("stable-agent")));
+  assert.notEqual(fingerprintSeedForAgent(agent("stable-agent")), fingerprintSeedForAgent(agent("other-agent")));
 });
 
 test("plugin exposes a compact native browser tool set and uses snapshot refs", async () => {
@@ -197,20 +238,22 @@ test("plugin exposes a compact native browser tool set and uses snapshot refs", 
     "browser_click", "browser_close", "browser_extract", "browser_navigate", "browser_open", "browser_press",
     "browser_screenshot", "browser_select", "browser_snapshot", "browser_tabs", "browser_type", "browser_wait"
   ]);
-  assert.equal(tools.get("browser_type").timeoutMs, 90000);
+  assert.equal(tools.get("browser_type").timeoutMs, 105000);
 
   const subject = agent("agent-a");
   const exec = execFor(subject);
   const opened = await tools.get("browser_open").execute({ url: "https://example.com" }, exec);
   assert.equal(opened.url, "https://example.com");
+  assert.equal(opened.snapshot.elements[0].ref, "p1:s1:e1");
+  assert.equal(opened.refsInvalidated, true);
+  assert.equal(opened.snapshotIncluded, true);
   assert.equal(created.length, 1);
 
-  const snapshot = await tools.get("browser_snapshot").execute({}, exec);
-  assert.equal(snapshot.elements[0].ref, "p1:s1:e1");
-  const clicked = await tools.get("browser_click").execute({ ref: snapshot.elements[0].ref }, exec);
+  const clicked = await tools.get("browser_click").execute({ ref: opened.snapshot.elements[0].ref }, exec);
   assert.equal(clicked.status, "clicked");
+  assert.equal(clicked.snapshot.elements[0].ref, "p1:s2:e1");
   assert.equal(created[0].page.clicks, 1);
-  await assert.rejects(tools.get("browser_click").execute({ ref: snapshot.elements[0].ref }, exec), /stale/);
+  await assert.rejects(tools.get("browser_click").execute({ ref: opened.snapshot.elements[0].ref }, exec), /stale/);
 
   const screenshot = await tools.get("browser_screenshot").execute({}, exec);
   assert.equal(screenshot.attached, true);
@@ -218,6 +261,72 @@ test("plugin exposes a compact native browser tool set and uses snapshot refs", 
 
   assert.deepEqual(await tools.get("browser_close").execute({}, exec), { closed: true });
   assert.equal(created[0].closed, true);
+});
+
+test("snapshot refs cover iframe controls and human click false positives retry automatically", async () => {
+  const { ctx, tools } = harness();
+  const context = new FakeContext();
+  const frame = new FakeFrame("https://frame.example/form", "embedded-form", [{
+    index: 0,
+    tag: "button",
+    role: "button",
+    name: "Pay in frame",
+    type: "button",
+    href: "",
+    disabled: false,
+    checked: null,
+    expanded: false
+  }], "Embedded form");
+  context.page.childFrames.push(frame);
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({ launchContext: async () => context }) });
+  plugin.apply(ctx, { routePrompt: false });
+  const exec = execFor(agent("framed"));
+
+  await tools.get("browser_open").execute({}, exec);
+  const snapshot = await tools.get("browser_snapshot").execute({}, exec);
+  const framedButton = snapshot.elements.find((element) => element.name === "Pay in frame");
+  assert.equal(framedButton.frameId, "f2");
+  assert.match(snapshot.text, /Embedded form/);
+  assert.equal(snapshot.frames.length, 2);
+
+  frame.failNextClick = true;
+  const clicked = await tools.get("browser_click").execute({ ref: framedButton.ref }, exec);
+  assert.equal(clicked.actionabilityRetried, true);
+  assert.equal(frame.clicks, 1);
+  assert.ok(clicked.snapshot.elements.some((element) => element.name === "Pay in frame"));
+  await tools.get("browser_close").execute({}, exec);
+});
+
+test("humanized fill retries only the known pre-input actionability false positive", async () => {
+  const { ctx, tools } = harness();
+  const context = new FakeContext();
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({ launchContext: async () => context }) });
+  plugin.apply(ctx, { routePrompt: false });
+  const exec = execFor(agent("fill-retry"));
+  await tools.get("browser_open").execute({}, exec);
+  const snapshot = await tools.get("browser_snapshot").execute({}, exec);
+  const textbox = snapshot.elements.find((element) => element.role === "textbox");
+  context.page.failNextFill = true;
+  const typed = await tools.get("browser_type").execute({ ref: textbox.ref, text: "retry-safe" }, exec);
+  assert.equal(typed.actionabilityRetried, true);
+  assert.equal(context.page.filled, "retry-safe");
+});
+
+test("Agent sessions receive stable automatic fingerprint seeds without configuration", async () => {
+  const launches = [];
+  const { ctx, tools } = harness();
+  const plugin = createCloakBrowserPlugin({ browserApiLoader: async () => ({
+    launchContext: async (options) => { launches.push(options); return new FakeContext(); }
+  }) });
+  plugin.apply(ctx, { routePrompt: false });
+  const first = agent("repeat-agent");
+  await tools.get("browser_open").execute({}, execFor(first));
+  await tools.get("browser_close").execute({}, execFor(first));
+  await tools.get("browser_open").execute({}, execFor(first));
+  await tools.get("browser_open").execute({}, execFor(agent("different-agent")));
+  const seeds = launches.map((options) => options.args.find((value) => value.startsWith("--fingerprint=")));
+  assert.equal(seeds[0], seeds[1]);
+  assert.notEqual(seeds[0], seeds[2]);
 });
 
 test("browser sessions are isolated by Agent and disposed with the Agent", async () => {

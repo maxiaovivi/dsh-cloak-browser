@@ -6,6 +6,7 @@ import { createCloakBrowserPlugin } from "../lib/plugin.mjs";
 
 const jsonOnly = process.argv.includes("--json");
 const humanize = !process.argv.includes("--no-humanize");
+const autoSnapshot = !process.argv.includes("--no-auto-snapshot");
 const sampleCount = Math.max(3, Number.parseInt(process.env.BENCH_SAMPLES ?? "5", 10));
 
 function percentile(sorted, fraction) {
@@ -135,7 +136,8 @@ async function main() {
     blockPrivateNetworks: false,
     allowedDomains: ["127.0.0.1"],
     maxSnapshotElements: 100,
-    maxTextChars: 12000
+    maxTextChars: 12000,
+    autoSnapshot
   });
 
   const memoryBefore = processTreeRssBytes();
@@ -160,13 +162,14 @@ async function main() {
     const clickWorkflow = await sample(async () => {
       const before = await tools.get("browser_snapshot").execute({ max_elements: 100 }, exec);
       const button = before.elements.find((element) => element.role === "button");
-      await tools.get("browser_click").execute({ ref: button.ref }, exec);
-      return tools.get("browser_snapshot").execute({ max_elements: 100 }, exec);
+      const clicked = await tools.get("browser_click").execute({ ref: button.ref }, exec);
+      return autoSnapshot ? clicked.snapshot : tools.get("browser_snapshot").execute({ max_elements: 100 }, exec);
     }, Math.min(3, sampleCount));
     const typeWorkflow = await sample(async () => {
       const before = await tools.get("browser_snapshot").execute({ max_elements: 100 }, exec);
       const textbox = before.elements.find((element) => element.role === "textbox");
-      return tools.get("browser_type").execute({ ref: textbox.ref, text: "benchmark-value" }, exec);
+      const typed = await tools.get("browser_type").execute({ ref: textbox.ref, text: "benchmark-value" }, exec);
+      return autoSnapshot ? typed.snapshot : tools.get("browser_snapshot").execute({ max_elements: 100 }, exec);
     }, Math.min(3, sampleCount));
 
     await tools.get("browser_close").execute({}, exec);
@@ -192,6 +195,7 @@ async function main() {
       workload: {
         localHttp: true,
         humanize,
+        autoSnapshot,
         domInteractiveElements: 302,
         snapshotElementCap: 100,
         textCharacterCap: 12000,
@@ -210,6 +214,10 @@ async function main() {
         screenshotBytes: screenshot.value.image?.bytes ?? screenshot.value.bytes,
         snapshotClickSnapshotWorkflow: clickWorkflow.stats,
         snapshotTypeWorkflow: typeWorkflow.stats,
+        toolCallsPerObserveWorkflow: {
+          navigateThenObserve: autoSnapshot ? 1 : 2,
+          snapshotActionThenObserve: autoSnapshot ? 2 : 3
+        },
         processTreeRssBytes: {
           before: memoryBefore,
           browserOpen: memoryOpen,

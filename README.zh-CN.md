@@ -62,6 +62,9 @@ dsh --profile web
 约 200MB 的 Chromium 压缩包，解压后的 `~/.cloakbrowser` 缓存会占用更多磁盘空间。不需要执行
 `playwright install chromium`。
 
+存在代理 URL 时，插件会自动启用 CloakBrowser GeoIP 匹配。第一次使用可能还会把约 70MB 的
+GeoLite 数据库下载到同一缓存；`mmdb-lib` 已随插件安装，不需要再执行安装命令。
+
 ### 卸载
 
 ```bash
@@ -96,10 +99,16 @@ DSH 原生 Tool → per-Agent BrowserContext Map → CloakBrowser → Playwright
 - 原生 DSH Tool：支持 schema、规范 JSON 返回、UI 展示和 Code Mode。
 - 延迟启动：只有 Agent 第一次调用浏览器 Tool 时才启动 Chromium。
 - 每个 Agent 拥有隔离的 BrowserContext；`agent/disposed` 或插件卸载时自动关闭。
-- 有界页面快照和短期元素 ref，例如 `p1:s3:e8`；页面变化后旧 ref 会安全失效。
+- 导航和交互后自动返回有界页面快照与短期元素 ref（例如 `p1:s3:e8`），Agent 无需额外调用
+  一次观察 Tool 即可继续。
+- 自动识别 iframe 内的控件，并返回 selected、expanded、required、invalid、read-only 等表单状态。
 - 支持导航、点击、填写、选择、按键、等待、内容提取、截图、标签页和生命周期管理。
 - 视觉模型获得 DSH 持久图片附件；纯文本模型自动回退到页面文本快照。
 - 通过 CloakBrowser 提供可选的人类化鼠标、输入和滚动。
+- CloakBrowser 人类化点击/填写出现特定的 `covered by <none>` 执行前误报时自动重试一次；
+  其他错误仍安全失败。
+- 未显式配置 seed 时，自动为每个 Agent 派生稳定且哈希化的 fingerprint seed。
+- 检测到代理环境变量时自动启用 GeoIP 一致性，所需运行依赖随插件安装。
 - 默认使用临时 Context；显式配置后可使用按 Agent 隔离的持久 profile。
 - 支持域名允许/拒绝规则、显式私网地址拦截、页面/输出限制、协作取消和浏览器清理。
 - 常驻路由提示让交互或真实渲染任务选择浏览器，而简单公开文本查询继续使用更轻量的 Web Tool。
@@ -109,23 +118,24 @@ DSH 原生 Tool → per-Agent BrowserContext Map → CloakBrowser → Playwright
 推荐流程：
 
 ```text
-browser_open / browser_navigate
-  → browser_snapshot
-  → browser_click / browser_type / browser_select
-  → 页面变化后重新 browser_snapshot
+browser_open(url) / browser_navigate(url) → 返回 snapshot + refs
+  → browser_click / browser_type / browser_select → 返回下一份 snapshot + refs
   → 浏览器任务完成后 browser_close
 ```
 
+默认流程不需要在每次操作之间手工调用 `browser_snapshot`。页面自行变化或 Agent 需要刷新视图时，
+仍可使用显式 Snapshot Tool。
+
 | Tool | 功能 |
 |---|---|
-| `browser_open` | 延迟打开当前 Agent 的浏览器会话 |
-| `browser_navigate` | 导航到允许的 URL |
-| `browser_snapshot` | 返回有上限的页面文本和交互元素 ref |
-| `browser_click` | 点击最新快照中的 ref |
-| `browser_type` | 填写文本，可选回车提交 |
-| `browser_select` | 选择 `<select>` 选项 |
-| `browser_press` | 按下限定的导航按键 |
-| `browser_wait` | 等待文本或短时间等待 |
+| `browser_open` | 延迟打开会话；传入 URL 时同时返回 Snapshot |
+| `browser_navigate` | 导航并返回含 ref 的新 Snapshot |
+| `browser_snapshot` | 显式刷新有上限的页面/iframe 文本和 ref |
+| `browser_click` | 点击 ref 并返回下一份 Snapshot |
+| `browser_type` | 填写文本、可选提交并返回下一份 Snapshot |
+| `browser_select` | 选择选项并返回下一份 Snapshot |
+| `browser_press` | 按下限定导航键并返回下一份 Snapshot |
+| `browser_wait` | 等待文本或时间并返回结果 Snapshot |
 | `browser_extract` | 提取有上限的文本、HTML 或属性，不执行任意 JS |
 | `browser_screenshot` | 视觉路由返回图片附件，文本路由返回元数据 |
 | `browser_tabs` | 列出、选择或关闭标签页 |
@@ -149,10 +159,10 @@ Bundle 默认配置位于 [`cordis.patch.yml`](./cordis.patch.yml)。
 | `headless` | `true` | 无可见窗口运行 Chromium |
 | `humanize` | `true` | 启用 CloakBrowser 人类化交互 |
 | `humanPreset` | `default` | `default` 或 `careful` 行为预设 |
-| `geoip` | `false` | 在支持时根据代理 IP 推导语言和时区 |
+| `geoip` | `auto` | `proxyEnv` 存在时自动按代理 IP 推导语言和时区，也可显式设为 `true` 或 `false` |
 | `proxyEnv` | `CLOAKBROWSER_PROXY_URL` | 保存代理 URL 的环境变量名 |
 | `persistentProfileRoot` | 空 | 按 Agent 哈希创建持久 profile 的根目录 |
-| `fingerprintSeed` | 空 | 可选稳定身份 seed；无关用户不能复用同一身份 |
+| `fingerprintSeed` | 空 | 留空时自动派生稳定且哈希化的 per-Agent seed；显式 seed 会覆盖自动值 |
 | `fingerprintNoise` | `false` | 关闭 canvas/WebGL/audio/client-rect 注入噪声；实测消除了 5 个 CreepJS lies |
 | `fingerprintWindowsFontMetrics` | `false` | Chromium 148+ Windows 字体指标；Linux 必须有真实 Windows 字体集 |
 | `allowThirdPartyCookies` | `false` | Chromium 148+ 的内嵌 reCAPTCHA/SSO/支付流程兼容开关 |
@@ -167,6 +177,7 @@ Bundle 默认配置位于 [`cordis.patch.yml`](./cordis.patch.yml)。
 | `navigationTimeoutMs` | `30000` | 导航超时 |
 | `maxSnapshotElements` | `100` | 单次快照返回的最大 ref 数 |
 | `maxTextChars` | `12000` | 页面和提取文本最大长度 |
+| `autoSnapshot` | `true` | 在导航和交互结果中自动包含一份新的有界 Snapshot |
 | `screenshotFormat` | `jpeg` | `jpeg` 或 `png` |
 | `screenshotQuality` | `80` | JPEG 质量 |
 | `routePrompt` | `true` | 向 system prompt 注入浏览器选择规则 |
@@ -211,6 +222,7 @@ CloakBrowser wrapper 源码使用 MIT，但其下载的 Chromium 二进制由 Cl
 
 | 组件 | 版本 |
 |---|---|
+| dsh-cloak-browser | `0.2.0` |
 | DeepSeek Harness packages | `0.1.0-rc.6` |
 | CloakBrowser wrapper | `0.5.7` |
 | Playwright Core | `1.62.0` |
@@ -218,9 +230,10 @@ CloakBrowser wrapper 源码使用 MIT，但其下载的 Chromium 二进制由 Cl
 
 当前版本执行过：
 
-- 域名策略、私网拒绝、snapshot ref、过期 ref、Agent 隔离、图片附件和清理单元测试。
+- 域名策略、私网拒绝、自动及 iframe snapshot ref、过期 ref、安全 actionability 重试、稳定
+  per-Agent seed、Agent 隔离、图片附件和清理单元测试。
 - 在干净的临时 DSH Web profile 中安装并完整启动 Cordis/Web。
-- Linux x64 免费版 CloakBrowser Chromium 真实启动、访问 `https://example.com` 并提取 DOM 快照。
+- Linux x64 免费版 CloakBrowser Chromium 真实启动、本地页面导航、iframe 发现、ref 验证和截图。
 - 通过插件路径和 CloakBrowser direct 对照运行上游同口径的本地及公开隐身 detector；完整报告见下文。
 - `npm audit`、语法检查和 npm package dry-run。
 
@@ -251,5 +264,7 @@ reCAPTCHA v3 一次得到 0.9，重复运行则没有得到 score。
 
 在文档所列 Linux 测试机上，缓存后的首次延迟启动约 635ms，后续约 183ms；100-ref 快照 P50
 为 29ms，提取 12,000 字符为 1.2ms，视口截图为 51ms。关闭 `humanize` 时“快照→点击→快照”
-为 161ms；默认的人类化工作流会有意放慢到 6.27 秒。双语方法、内存数据、对比表和原始 JSON
-见 [`docs/PERFORMANCE.zh-CN.md`](./docs/PERFORMANCE.zh-CN.md)。
+为 161ms；默认的人类化工作流会有意放慢到 6.27 秒。自动观察把“导航→观察”从两次 Tool
+调用降为一次，把“操作→观察”工作流从三次降为两次，且浏览器执行时间没有实测回退。双语
+方法、内存数据、对比表和原始 JSON 见
+[`docs/PERFORMANCE.zh-CN.md`](./docs/PERFORMANCE.zh-CN.md)。

@@ -12,9 +12,13 @@ function listen(server) {
 }
 
 test("real CloakBrowser launches, renders, snapshots and screenshots", { timeout: 60_000 }, async () => {
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
     response.setHeader("content-type", "text/html; charset=utf-8");
-    response.end("<!doctype html><title>DSH benchmark</title><main><button>Continue</button><input aria-label='Query'><p>Rendered locally</p></main>");
+    if (request.url === "/frame") {
+      response.end("<!doctype html><title>Frame</title><main><button aria-expanded='false'>Framed action</button><p>Rendered iframe</p></main>");
+      return;
+    }
+    response.end("<!doctype html><title>DSH benchmark</title><main><button>Continue</button><input aria-label='Query'><p>Rendered locally</p><iframe name='embedded' src='/frame'></iframe></main>");
   });
   const address = await listen(server);
   const startedAt = performance.now();
@@ -22,7 +26,7 @@ test("real CloakBrowser launches, renders, snapshots and screenshots", { timeout
   const launchMs = performance.now() - startedAt;
   try {
     const page = context.pages()[0] ?? await context.newPage();
-    await page.goto(`http://127.0.0.1:${address.port}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`http://127.0.0.1:${address.port}`, { waitUntil: "load" });
     const snapshotStartedAt = performance.now();
     const snapshot = await takePageSnapshot(page, "p1", 1, { maxElements: 20, maxTextChars: 2000 });
     const snapshotMs = performance.now() - snapshotStartedAt;
@@ -30,11 +34,19 @@ test("real CloakBrowser launches, renders, snapshots and screenshots", { timeout
 
     assert.equal(snapshot.value.title, "DSH benchmark");
     assert.match(snapshot.value.text, /Rendered locally/);
-    assert.equal(snapshot.value.elements.length, 2);
+    assert.equal(snapshot.value.elements.length, 3);
+    assert.match(snapshot.value.text, /Rendered iframe/);
+    assert.equal(snapshot.value.frames.length, 2);
     const buttonRef = snapshot.value.elements.find((element) => element.role === "button").ref;
     const buttonEntry = snapshot.refs.get(buttonRef);
     const inspectedButton = await inspectInteractiveLocator(page.locator(INTERACTIVE_SELECTOR).nth(buttonEntry.index));
     assert.equal(inspectedButton.fingerprint, expectedFingerprint(buttonEntry));
+    const framedButton = snapshot.value.elements.find((element) => element.name === "Framed action");
+    assert.equal(framedButton.frameId, "f2");
+    assert.equal(framedButton.expanded, false);
+    const framedEntry = snapshot.refs.get(framedButton.ref);
+    const inspectedFramedButton = await inspectInteractiveLocator(framedEntry.frame.locator(INTERACTIVE_SELECTOR).nth(framedEntry.index));
+    assert.equal(inspectedFramedButton.fingerprint, expectedFingerprint(framedEntry));
     assert.ok(screenshot.byteLength > 1000);
     assert.ok(launchMs < 30_000, `cached launch took ${launchMs.toFixed(1)} ms`);
     assert.ok(snapshotMs < 5_000, `snapshot took ${snapshotMs.toFixed(1)} ms`);
