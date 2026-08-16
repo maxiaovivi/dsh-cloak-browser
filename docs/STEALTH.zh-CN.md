@@ -81,6 +81,22 @@ npm run test:stealth -- --profile hardened
 
 ## 本机实测结果
 
+### Pro 150 可复现单项复测
+
+2026-08-16（Asia/Jakarta）使用 wrapper `0.5.7`、Pro Chromium
+`150.0.7871.114.6`，在 Linux x64、headless、无代理环境中通过插件适配器复测：
+
+```bash
+npm run test:stealth -- --detectors rebrowser --profile hardened --adapter plugin
+```
+
+Rebrowser 结果为 5 项通过、3 项未触发、0 项失败。对应 DSH 会话在 13 秒内完成
+`browser_open`、`browser_wait`、自动 Snapshot 检查和 `browser_close`。这项复测
+只证明当前二进制在一个公开 Detector 上的结果，不能代替完整套件，也不能预测生产网站结合 IP、
+账号、TLS、行为和挑战层作出的风控判断。
+
+### 较早的完整套件基线
+
 测试时间为 2026-08-15（Asia/Jakarta）。环境：wrapper `0.5.7`、免费 Chromium
 `146.0.7680.177.5`、Linux x64、headless、无代理、无 Windows 字体集、无 GeoIP 数据库。
 

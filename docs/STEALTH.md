@@ -85,6 +85,24 @@ It adds stricter parsing, evidence capture, and a direct-upstream control mode.
 
 ## Observed results
 
+### Pro 150 reproducible spot check
+
+On 2026-08-16 (Asia/Jakarta), wrapper `0.5.7` and Pro Chromium
+`150.0.7871.114.6` were retested on Linux x64 in headless mode, without a
+proxy, through the plugin adapter:
+
+```bash
+npm run test:stealth -- --detectors rebrowser --profile hardened --adapter plugin
+```
+
+Rebrowser reported 5 passed, 3 not triggered, and 0 failed checks. The matching
+DSH run completed `browser_open`, `browser_wait`, automatic snapshot inspection,
+and `browser_close` in 13 seconds. This spot check demonstrates the current
+binary on one public detector; it does not replace the full suite or predict a
+production site's IP, account, TLS, behavioral, or challenge-layer decision.
+
+### Earlier full-suite baseline
+
 Tested 2026-08-15 (Asia/Jakarta) with wrapper `0.5.7`, free Chromium
 `146.0.7680.177.5`, Linux x64, headless mode, no proxy, no Windows font set,
 and no GeoIP database.

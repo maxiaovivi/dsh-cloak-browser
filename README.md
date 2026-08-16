@@ -99,6 +99,31 @@ dsh plugin --profile web remove -w dsh-cloak-browser
 Restart DSH after removal. Browser binaries cached under `~/.cloakbrowser` are
 managed separately by the CloakBrowser CLI.
 
+## See it in DSH
+
+This real DSH session opened Wikipedia, discovered the search field from a
+bounded snapshot, submitted `CloakBrowser`, verified the result page, captured
+a screenshot, and closed the browser. The complete Agent run took 15 seconds.
+
+### End-to-end Agent workflow
+
+![DSH Agent completing a CloakBrowser workflow from open through close](./assets/screenshots/01-agent-browser-workflow.png)
+
+### Structured result-page state with stable element refs
+
+![browser_snapshot returning the Wikipedia result page and bounded element refs](./assets/screenshots/03-structured-page-refs.png)
+
+### Public anti-automation detector demo
+
+In a separate real DSH session, the Agent opened Rebrowser's public bot
+detector, waited for the checks, confirmed the rendered results, and closed the
+browser. A separate reproducible Pro 150 runner captured the detector page and
+reported 5 passed, 3 not triggered, and 0 failed checks. This is evidence for
+that public detector only, not a claim that every production anti-bot system
+can be bypassed.
+
+![Rebrowser result from CloakBrowser Pro 150 with no failed checks](./assets/screenshots/05-rebrowser-pro-150-result.png)
+
 ## What this project is
 
 `dsh-cloak-browser` is an independent, community-maintained native browser

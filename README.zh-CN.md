@@ -89,6 +89,27 @@ dsh plugin --profile web remove -w dsh-cloak-browser
 
 卸载后重启 DSH。`~/.cloakbrowser` 下的浏览器缓存由 CloakBrowser CLI 单独管理。
 
+## DSH 实际演示
+
+这条真实 DSH 会话打开 Wikipedia，通过有界 Snapshot 找到搜索框，提交 `CloakBrowser`，
+确认结果页、完成截图并关闭浏览器。Agent 的完整运行耗时 15 秒。
+
+### Agent 端到端工作流
+
+![DSH Agent 使用 CloakBrowser 从打开页面到关闭会话的完整工作流](./assets/screenshots/01-agent-browser-workflow.png)
+
+### 结果页结构化状态与稳定元素 ref
+
+![browser_snapshot 返回 Wikipedia 结果页和有界元素 ref](./assets/screenshots/03-structured-page-refs.png)
+
+### 公开反自动化检测演示
+
+另一条真实 DSH 会话由 Agent 打开 Rebrowser 公开 Bot Detector，等待检测、确认渲染结果并关闭
+浏览器。独立的可复现 Pro 150 Runner 同时保存了检测页面，结果为 5 项通过、3 项未触发、0 项
+失败。这只能证明该次公开 Detector 没有检出，不能表述为所有生产反爬和风控系统都能绕过。
+
+![CloakBrowser Pro 150 在 Rebrowser 上取得 0 项失败](./assets/screenshots/05-rebrowser-pro-150-result.png)
+
 ## 项目来源
 
 `dsh-cloak-browser` 是社区维护的独立 DeepSeek Harness 原生浏览器 Tool Bundle，连接了两个
